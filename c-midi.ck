@@ -3,7 +3,7 @@ public class MidiDevice extends Event
     MidiIn midin; // recv midi
     MidiOut midout; // send midi 
     MidiMsg midmsg; // midi unravel
-    0 => int print;
+    1 => int print;
 
     fun void MidiDevice()
     {
@@ -28,6 +28,7 @@ public class MidiDevice extends Event
 
     // last cc and note
     int lastCCNum; int lastNoteKeyOn; int lastNoteKeyOff; 
+    int deltaCCVal;
     int lastNoteOnVelocity; int lastNoteOffVelocity;
     int lastMsgType; // 176 == cc, 144 == note on, 128 == note off
     // the value of the cc
@@ -43,6 +44,7 @@ public class MidiDevice extends Event
                 if( midmsg.data1 == 176 )
                 {
                     midmsg.data1 => lastMsgType;
+                    midmsg.data2 - lastCCVal => deltaCCVal; 
                     midmsg.data2 => lastCCNum;
                     midmsg.data3 => lastCCVal;
                     if( print ) <<< "CC: ", lastCCNum, lastCCVal >>>;
@@ -74,6 +76,11 @@ public class MidiDevice extends Event
     fun int CC()
     {
         return 176;
+    }
+
+    fun int deltaCC()
+    {
+        return deltaCCVal;
     }
 
     fun int NoteOn()

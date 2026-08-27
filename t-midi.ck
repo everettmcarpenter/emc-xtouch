@@ -1,6 +1,6 @@
-@import "c-midi.ck"
+@import "c-xtouch.ck"
 
-MidiDevice go( 2 );
+XTouch go( 2 );
 
 while( true )
 {
