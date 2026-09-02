@@ -4,6 +4,7 @@ public class MidiDevice extends Event
     MidiOut midout; // send midi 
     MidiMsg midmsg; // midi unravel
     1 => int print;
+	0 => int channel;
 
     fun void MidiDevice()
     {
@@ -70,8 +71,18 @@ public class MidiDevice extends Event
 
     fun void sendCC( int ccNum, int value )
     {
-        this.midout.controlChange( 1, ccNum, value );
+        midout.controlChange( channel, ccNum, value );
     }
+
+    fun void noteOn( int num, int vel )
+    {
+    	midout.noteOn( channel, num, vel );
+    }
+
+	fun void noteOff( int num, int vel )
+	{
+		midout.noteOff( channel, num, vel );
+	}
 
     fun int CC()
     {
@@ -103,9 +114,19 @@ public class MidiDevice extends Event
         return lastNoteKeyOn;
     }
 
+	fun int lastOnVelocity()
+	{
+		return lastNoteOnVelocity;
+	}
+
     fun int lastNoteOff()
     {
         return lastNoteKeyOff;
+    }
+
+    fun int lastOffVelocity()
+    {
+    	return lastNoteOffVelocity;
     }
 
     fun int lastCC()

@@ -3,6 +3,77 @@
 public class XTouch extends MidiDevice
 {
     int faderOn[9]; // which faders are being touched?
+    int lastCCValue; int lastCCNum;
+    int lastNoteOn; int lastNoteOff;
+    int lastVelocity;
+
+    int lastMessageType;
+
+    fun void XTouch()
+    {
+        // open the device
+        if( !midin.open( 0 ) && !midout.open( 0 ) ) me.exit();
+        // print out device that was opened
+        <<< "MIDI device:", midin.num(), " -> ", midin.name() >>>;
+            
+        spork ~ update();
+    }
+
+    fun void XTouch( int device )
+    {
+        // open the device
+        if( !midin.open( device ) && !midout.open( device ) ) me.exit();
+
+        // print out device that was opened
+        <<< "MIDI device:", midin.num(), " -> ", midin.name() >>>;
+         
+        spork ~ update();
+    }
+
+    fun void update()
+    {
+        while( true )
+        {
+            midin => now;
+            while( midin.recv( midmsg ) )
+            {
+                midmsg.data1 => lastMsgType;
+                
+                if( lastMsgType == this.CC() )
+                {
+                    midmsg.data2 => lastCCNum;
+                    midmsg.data3 => lastCCVal;
+                }
+                else if( lastMsgType == this.NoteOn() )
+                {
+                    midmsg.data2 => lastNoteOn;
+                    midmsg.data3 => lastVelocity;
+                }
+                else if( lastMsgType == this.NoteOff() )
+                {
+                    midmsg.data2 => lastNoteOff;
+                    midmsg.data3 => lastVelocity;
+                }
+
+                if( midmsg.data1 == this.CC() )
+                {
+                    if( lastCCNum >= 101 && lastCCNum <= 109 ) // these are the CCs send when a fader is touched!
+                    {   
+                        if( lastCCVal ) 1 => faderOn[lastCCNum - 101]; // if the value was non-zero, the fader was touched
+                        else 0 => faderOn[lastCCNum - 101]; // if the value was 0, then it was released
+
+                        this.faderMovement() => lastMessageType;
+                    }
+                }
+            }
+        }
+    }
+
+}
+
+public class XTouch extends MidiDevice
+{
+    int faderOn[9]; // which faders are being touched?
     int faderValues[9];
     int channelValues[9][16]; // we have nine faders which select 9 channels which have 16 knobs each
     int ccValues[16];
