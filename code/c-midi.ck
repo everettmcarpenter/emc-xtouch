@@ -27,6 +27,18 @@ public class MidiDevice extends Event
         spork ~ update();
     }
 
+	fun void MidiDevice( int inDevice, int outDevice )
+	    {
+	        // open the device
+	        if( !midin.open( inDevice ) && !midout.open( outDevice ) ) me.exit();
+	
+	        // print out device that was opened
+	        <<< "MIDI device:", midin.num(), " -> ", midin.name() >>>;
+	         
+	        spork ~ update();
+	    }
+	
+
     // last cc and note
     int lastCCNum; int lastNoteKeyOn; int lastNoteKeyOff; 
     int deltaCCVal;

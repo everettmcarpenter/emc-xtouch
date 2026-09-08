@@ -1,15 +1,20 @@
 @import "c-midi.ck"
 
-MidiDevice medi( 2 );
+8 => int GRAIN_CHANNELS;
 
+// midi 
+MidiDevice medi( 17, 18 );
 0 => medi.print;
 
 // patchbay
-Atmosphere2 grains( "../audio/yuo.wav", 1 )[8];
-OrderGain2 faders( 0.0 )[8];
-OrderGain2 sum( 1.0 / grains.size() ) => SAD2 sad => dac;
+Atmosphere2 grains( "../audio/440.wav", 1 )[ GRAIN_CHANNELS ];
+OrderGain2 faders( 1.0 )[ GRAIN_CHANNELS ];
+OrderGain2 sum( 0.5 ) => SAD2 sad;
+
 // reverb
 // faders => Gain revSend( 0.0 )[9] => NRev reverb( 1.0 ) => dac;
+
+for(int i; i < sad.channels(); i++) sad.chan(i) => dac.chan(i);
 
 float speaks[9][2];
 for(int i; i < speaks.size(); i++)
@@ -19,16 +24,29 @@ for(int i; i < speaks.size(); i++)
 
 sad.placement(speaks);
 
-
 for( int i; i < grains.size(); i++ ) 
 {
-	grains[i] => faders[i] => sad;
+	grains[i] => faders[i] => sum;
 	grains[i].position( 1.0, grains[i].duration() * 2.0 );
 }
 
-int channelSwitch[8];
-int channelLock[8];
-float loopSpeed[8];
+int channelSwitch[ GRAIN_CHANNELS ];
+int channelLock[ GRAIN_CHANNELS ];
+float loopSpeed[ GRAIN_CHANNELS ];
+
+spork ~ looper();
+
+
+/*
+    TODO - since we have multiple channels, it may be worth investigating using for each loops rather than typical for
+           this way, when we need to call updateGrainSize or something similar, we can call a function whose arguments
+           contain a reference to a grain and the delta, that way we don't have to index check.
+           we could also create a meta-class of the grains which contain updateGrainSize and similar to only pass the deltas
+           completely removing the need for bounds checking and fully contains the parameters within a block.
+           the only issue with utilizing a meta class is that chugraphs are not multichannel and thus we would use some workaround for it.  
+           another issue is that things like channelLock and channelSwitch would need to be integrated into a meta class, thus we NEED a meta class 
+           to eliminate bounds checking ( not impossible )
+*/
 
 while( true )
 {
@@ -42,19 +60,18 @@ while( true )
         if( cc >= 101 && cc <= 108 )
         {
         	// if the channel isn't locked, we can modify the state
-        	if( !channelLock[ cc - 101 ] )
-        	{
-	            if ( ccval ) 1 => channelSwitch[ cc - 101 ];
-	            else if( !ccval ) 0 => channelSwitch[ cc - 101 ];
-        	}
+        	if( !channelLock[ cc - 101 ] ) 
+                updateChannelState( cc - 101, ccval );
         }
-        // 1 - 9 are fader values, 
+        // 1 - 9 are fader values, for layer A
         else if( cc >= 1 && cc <= 9 )
         {
             // faders 1 - 8 are for voices
-            if( cc <= 8 ) faders[ cc - 1 ].gain( midi2float( ccval ) );
+            if( cc <= 8 ) 
+                updateChannelFader( cc - 1, ccval );
             // fader 9 is main fader
-            else dac.gain( midi2float( ccval ) );
+            else 
+                updateOutFader( ccval );
         }
         // 10 - 25 are knobs
         else if( cc >= 10 && cc <= 25 )
@@ -69,12 +86,7 @@ while( true )
                     {
                         if( channelSwitch[i] )
                         {
-                            ( grains[i].size() * midi2float( ccval ) ) + grains[i].size() => float n_size;
-                            // if the value is 0, then we'll need to give it a boost 
-                            if( grains[i].size() == 0 && ccval > 0 ) 0.05 +=> n_size;
-                            // if it's really low, we're probably just continuously moving the knob to zero out the value
-                            else if( n_size <= 0.05 ) 0.0 => n_size;
-                            grains[i].size( n_size );
+                            updateGrainSize( i, ccval );
                             <<< "grain size : ", grains[i].size() >>>;
                         }
                     }
@@ -85,12 +97,7 @@ while( true )
                     {
                         if( channelSwitch[i] )
                         {
-                            ( grains[i].randomSize() * midi2float( ccval ) ) + grains[i].randomSize() => float n_randomSize;
-                            // if the value is 0, then we'll need to give it a boost 
-                            if( grains[i].randomSize() == 0 && ccval > 0 ) 0.05 +=> n_randomSize;
-                            // if it's really low, we're probably just continuously moving the knob to zero out the value
-                            else if( n_randomSize <= 0.05 ) 0.0 => n_randomSize;
-                            grains[i].randomSize( n_randomSize );
+                            updateRandomSize( i, ccval );
                             <<< "random grain size : ", grains[i].randomSize() >>>;
                         }
                     }
@@ -201,6 +208,18 @@ while( true )
         		<<< "note on: ", i + 25, 2 >>>;
        		}
         }
+        else if( note == 6 )
+        {
+        	for( int i; i < channelSwitch.size(); i++ )
+        	{
+        		if( channelSwitch[i] )
+        		{
+        			1.0 - grains[i].position() => float distance;
+					grains[i].position( 1.0, grains[i].duration() * distance * loopSpeed[i] );
+					<<< "resumed movement" >>>;		
+        		}
+        	}
+        }
 	} 
 	else if( medi.lastMsg() == medi.NoteOff() )
 	{
@@ -238,10 +257,57 @@ fun void looper()
 		{
 			if( grains[i].position() == 1.0 )
 			{
-				grains[i].position( 0.0, 0::samp );
+				grains[i].position( 0.0 );
+				10::samp => now;
 				grains[i].position( 1.0, grains[i].duration() * loopSpeed[i] );
 			}
 		}
 		50::ms => now;
 	}
+}
+
+fun void updateChannelState( int channel, int state )
+{
+    if( state ) 1 => channelSwitch[ channel ];
+    else 0 => channelSwitch[ channel ];
+}
+
+fun void updateChannelFader( int channel, int midiValue )
+{
+    faders[ channel ].gain( midi2float( midiValue ) ); // we should find a way to make this logarithmic
+}
+
+fun void updateOutFader( int midiValue )
+{
+    sum.gain( midi2float( midiValue ) );
+}
+
+fun void updateGrainSize( int whichGrain, int delta )
+{
+    ( grains[ whichGrain ].size() * midi2float( delta ) ) + grains[ whichGrain ].size() => float n_size;
+    // if the value is 0, then we'll need to give it a boost 
+    if( grains[ whichGrain ].size() == 0 && delta > 0 ) 0.05 +=> n_size;
+    // if it's really low, we're probably just continuously moving the knob to zero out the value
+    else if( n_size <= 0.05 ) 0.0 => n_size;
+    grains[ whichGrain ].size( n_size );
+}
+
+fun void updateRandomSize( int whichGrain, int delta )
+{
+    ( grains[ whichGrain ].randomSize() * midi2float( delta ) ) + grains[ whichGrain ].randomSize() => float n_randomSize;
+    // if the value is 0, then we'll need to give it a boost 
+    if( grains[ whichGrain ].randomSize() == 0 && delta > 0 ) 0.05 +=> n_randomSize;
+    // if it's really low, we're probably just continuously moving the knob to zero out the value
+    else if( n_randomSize <= 0.05 ) 0.0 => n_randomSize;
+    grains[ whichGrain ].randomSize( n_randomSize );
+}
+
+fun void updateGrainSize( Atmosphere2 @ grain, int delta )
+{
+    ( grain.size() * midi2float( delta ) ) + grain.size() => float n_size;
+    // if the value is 0, then we'll need to give it a boost 
+    if( grain.size() == 0 && delta > 0 ) 0.05 +=> n_size;
+    // if it's really low, we're probably just continuously moving the knob to zero out the value
+    else if( n_size <= 0.05 ) 0.0 => n_size;
+    grain.size( n_size );
 }
