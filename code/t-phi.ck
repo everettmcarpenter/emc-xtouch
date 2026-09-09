@@ -1,28 +1,16 @@
 @import "c-midi.ck"
-@import "c-spot.ck"
+@import "c-phi.ck"
 
 8 => int GRAIN_CHANNELS;
 
 // midi 
-MidiDevice medi( 17, 18 );
+MidiDevice medi( 2 );
 0 => medi.print;
 
 // patchbay
-Spot grains( "../audio/440.wav", 1 )[ GRAIN_CHANNELS ];
-OrderGain2 faders( 1.0 )[ GRAIN_CHANNELS ];
-OrderGain2 sum( 0.5 ) => SAD2 sad;
-
+Phi grains( "../audio/Brit-Voice-Iso.wav", 1 )[ GRAIN_CHANNELS ] => Gain faders( 1.0 )[ GRAIN_CHANNELS ] => Gain sum( 1.0 / GRAIN_CHANNELS ) => dac;
 // reverb
 // faders => Gain revSend( 0.0 )[9] => NRev reverb( 1.0 ) => dac;
-for( int i; i < sad.channels(); i++ ) sad.chan(i) => dac.chan(i);
-
-float speaks[9][2];
-for( int i; i < speaks.size(); i++ )
-{
-   i*( 360.0 / 8.0 ) => speaks[i][0]; // ring of 8 dividing 360 degrees
-}
-
-sad.placement( speaks );
 
 for( int i; i < grains.size(); i++ ) 
 {
@@ -79,7 +67,7 @@ while( true )
                 ccval - 64 => ccval;
                 if( cc == 10 )
                 {
-                    for( Spot s : grains )
+                    for( Phi s : grains )
                     {
                         if( s.getSwitch() )
                             s.d_size( ccval );
@@ -87,7 +75,7 @@ while( true )
                 }
                 else if( cc == 11 )
                 {
-                    for( Spot s : grains )
+                    for( Phi s : grains )
                     {
                         if( s.getSwitch() )
                             s.d_randomSize( ccval );
@@ -95,7 +83,7 @@ while( true )
                 }
                 else if( cc == 12 )
                 {
-                    for( Spot s : grains )
+                    for( Phi s : grains )
                     {
                         if( s.getSwitch() )
                             s.d_position( ccval );
@@ -103,7 +91,7 @@ while( true )
                 }
                 else if( cc == 13 )
                 {
-                    for( Spot s : grains )
+                    for( Phi s : grains )
                     {
                         if( s.getSwitch() )
                             s.d_randomPosition( ccval );
@@ -111,7 +99,7 @@ while( true )
                 }
                 else if( cc == 14 )
                 {
-                    for( Spot s : grains )
+                    for( Phi s : grains )
                     {
                         if( s.getSwitch() )
                             s.d_pitch( ccval );
@@ -119,7 +107,7 @@ while( true )
                 }
                 else if( cc == 15 )
                 {
-                    for( Spot s : grains )
+                    for( Phi s : grains )
                     {
                         if( s.getSwitch() )
                             s.d_randomPitch( ccval );
@@ -127,7 +115,7 @@ while( true )
                 }
                 else if( cc == 16 )
                 {
-                    for( Spot s : grains )
+                    for( Phi s : grains )
                     {
                         if( s.getSwitch() )
                             s.d_loopSpeed( ccval );
@@ -152,7 +140,7 @@ while( true )
         else if( note == 48 )
         {	
         	// swap em all
-        	for( Spot s : grains ) 
+        	for( Phi s : grains ) 
         	{
         		s.setSwitch( 1 );
                 s.setLock( 1 );
@@ -160,7 +148,7 @@ while( true )
         }
         else if( note == 6 )
         {
-        	for( Spot s : grains )
+        	for( Phi s : grains )
         	{
         		if( s.getSwitch() )
         		{
@@ -180,7 +168,7 @@ while( true )
 		if( note == 48 )
 		{	
 			// unlock em all
-			for( Spot s : grains ) 
+			for( Phi s : grains ) 
 			{
 				s.setSwitch( 0 );
                 s.setLock( 0 );
